@@ -1,0 +1,22 @@
+Thank you for your purchase!!
+
+what you receive are the following:
+
+1 HTML5 Game 
+Construct 2 Capx file ( game source code )
+Construct 3 c3p file ( game source code )
+
+HTML5 Game: 
+The HTML5 game is ready for web publishing, simply upload to any directory in your website:
+"http://www.yoursite.com/game/index.html"
+and share this URL with you your guests and players, that's it!
+
+
+Source Files (Construct 2 & 3 - Capx & c3p):
+to modify the game, use either the Capx file or the c3p file, the code is organized and grouped for easier modification.
+
+
+if you need help or requests email me or PM me from my codecanyon profile
+sparximer@outlook.com
+
+Good luck on your project!
