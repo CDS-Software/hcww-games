@@ -17,6 +17,7 @@ const noCacheMiddleware = (req, res, next) => {
 };
 
 // ── Self-unregistering SW override (kills C3's service worker caching) ──
+// NOTE: no clients.claim() — that caused C3 to detect SW takeover and reload the page
 const swOverride = (req, res) => {
     res.set('Content-Type', 'application/javascript');
     res.send(`
@@ -24,21 +25,30 @@ self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', async () => {
     const keys = await caches.keys();
     await Promise.all(keys.map(k => caches.delete(k)));
-    await self.clients.claim();
-    console.log('[SW] All caches cleared, service worker unregistered');
-    self.registration.unregister();
+    await self.registration.unregister();
+    console.log('[SW] Caches cleared and SW unregistered.');
 });
 `);
 };
 
+// ── Disable C3's register-sw.js to break the re-registration loop ──
+const disableSwReg = (req, res) => {
+    res.set('Content-Type', 'application/javascript');
+    res.send('// SW registration disabled');
+};
+
 app.use('/game-1', noCacheMiddleware);
 app.get('/game-1/sw.js', swOverride);
+app.get('/game-1/register-sw.js', disableSwReg);
 app.use('/game-2', noCacheMiddleware);
 app.get('/game-2/sw.js', swOverride);
+app.get('/game-2/register-sw.js', disableSwReg);
 app.use('/game-3', noCacheMiddleware);
 app.get('/game-3/sw.js', swOverride);
+app.get('/game-3/register-sw.js', disableSwReg);
 app.use('/game-4', noCacheMiddleware);
 app.get('/game-4/sw.js', swOverride);
+app.get('/game-4/register-sw.js', disableSwReg);
 
 // Map each game route to the folder containing its index.html
 app.use('/game-1', express.static(path.join(__dirname, 'assets/game-1')));
@@ -59,8 +69,8 @@ app.get('/', (req, res) => {
     `);
 });
 
-app.post('/api/v1/games/1/progress', (req, res) => {
-    console.log('[SERVER MOCK] Progress Report:', req.body);
+app.post('/api/v1/games/:gameId/progress', (req, res) => {
+    console.log('[SERVER] Progress Report:', req.body);
     res.json({ success: true });
 });
 
