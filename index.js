@@ -4,6 +4,20 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.use(express.json());
+
+// ── Force no-cache for all game-2 requests so service worker never serves stale files ──
+// app.use('/game-2', (req, res, next) => {
+//     res.set({
+//         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+//         'Pragma': 'no-cache',
+//         'Expires': '0',
+//         'Surrogate-Control': 'no-store',
+//     });
+//     next();
+// });
+
+
 // Map each game route to the folder containing its index.html
 app.use('/game-1', express.static(path.join(__dirname, 'assets/game-1')));
 app.use('/game-2', express.static(path.join(__dirname, 'assets/game-2/HTML5/Fill The Water Bucket')));
@@ -21,6 +35,11 @@ app.get('/', (req, res) => {
             <li><a href="/game-4">Game 4 - Let's Clean The River</a></li>
         </ul>
     `);
+});
+
+app.post('/api/v1/games/1/progress', (req, res) => {
+    console.log('[SERVER MOCK] Progress Report:', req.body);
+    res.json({ success: true });
 });
 
 app.listen(port, () => {

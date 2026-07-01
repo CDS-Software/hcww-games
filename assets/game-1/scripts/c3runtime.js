@@ -3705,7 +3705,15 @@ this.GetLayoutManager();let i=0;while(layoutManager.IsPendingChangeMainLayout()&
 timestamp;this._dt=this._dt1*this._timeScale;this._gameTime.Add(this._dt);this._gameTimeRaw.Add(dtRaw*this._timeScale);this._wallTime.Add(this._dt1);for(const [inst,instTime]of this._instanceTimes)instTime.Add(this._dt1*inst.GetTimeScale());if(this._canvasManager)this._canvasManager._UpdateTick();if(timestamp-this._fpsLastTime>=1E3){this._fpsLastTime+=1E3;if(timestamp-this._fpsLastTime>=1E3)this._fpsLastTime=timestamp;this._fps=this._fpsFrameCount;this._fpsFrameCount=0;this._mainThreadTime=Math.min(this._mainThreadTimeCounter/
 1E3,1);this._mainThreadTimeCounter=0;if(this._canvasManager)this._canvasManager._Update1sFrameRange();this._collisionEngine._Update1sStats();if(this.IsDebug())C3Debugger.Update1sPerfStats()}this._fpsFrameCount++}_SetTrackingInstanceTime(inst,enable){if(enable){if(!this._instanceTimes.has(inst)){const instTime=C3.New(C3.KahanSum);instTime.Copy(this._gameTime);this._instanceTimes.set(inst,instTime)}}else this._instanceTimes.delete(inst)}_GetInstanceGameTime(inst){const instTime=this._instanceTimes.get(inst);
 return instTime?instTime.Get():this.GetGameTime()}async _DoChangeLayout(changeToLayout){const dispatcher=this._dispatcher;const layoutManager=this.GetLayoutManager();const prevLayout=layoutManager.GetMainRunningLayout();await prevLayout._StopRunning();prevLayout._Unload(changeToLayout,this.GetRenderer());if(prevLayout===changeToLayout)this._eventSheetManager.ClearAllScheduledWaits();this._collisionEngine.ClearRegisteredCollisions();this._ReleaseInstancesAtEndOfTick();dispatcher.dispatchEvent(this._eventObjects["beforelayoutchange"]);
-C3.Asyncify.SetHighThroughputMode(true);await changeToLayout._Load(prevLayout,this.GetRenderer());C3.Asyncify.SetHighThroughputMode(false);await changeToLayout._StartRunning(false);dispatcher.dispatchEvent(this._eventObjects["layoutchange"]);this.UpdateRender();this._isLayoutFirstTick=true;this.FlushPendingInstances();this._ExportToVideoAddKeyframe()}UpdateRender(){this._needRender=true}GetWebGLRenderer(){if(!this._canvasManager)return null;return this._canvasManager.GetWebGLRenderer()}GetWebGPURenderer(){if(!this._canvasManager)return null;
+C3.Asyncify.SetHighThroughputMode(true);await changeToLayout._Load(prevLayout,this.GetRenderer());C3.Asyncify.SetHighThroughputMode(false);await changeToLayout._StartRunning(false);dispatcher.dispatchEvent(this._eventObjects["layoutchange"]);
+console.log("[DEBUG_LAYOUT] Changed to: " + changeToLayout.GetName());
+try {
+    const globals = this.GetEventSheetManager().GetAllGlobalVariables().map(v => v.GetName() + "=" + v.GetValue());
+    console.log("[DEBUG_GLOBALS] " + globals.join(", "));
+} catch(e) {
+    console.error("[DEBUG_GLOBALS_ERROR]", e);
+}
+this.UpdateRender();this._isLayoutFirstTick=true;this.FlushPendingInstances();this._ExportToVideoAddKeyframe()}UpdateRender(){this._needRender=true}GetWebGLRenderer(){if(!this._canvasManager)return null;return this._canvasManager.GetWebGLRenderer()}GetWebGPURenderer(){if(!this._canvasManager)return null;
 return this._canvasManager.GetWebGPURenderer()}GetRenderer(){if(!this._canvasManager)return null;return this._canvasManager.GetRenderer()}Render(){const canvasManager=this._canvasManager;if(!canvasManager||canvasManager.IsRendererContextLost())return;const renderer=this.GetRenderer();const supportsGPUProfiling=renderer.SupportsGPUProfiling();const isWebGLProfiling=supportsGPUProfiling&&renderer.IsWebGL();const isWebGPUProfiling=supportsGPUProfiling&&renderer.IsWebGPU();if(isWebGLProfiling)renderer.CheckForQueryResults();
 if(!this._needRender&&!this.IsExportToVideo()){renderer.IncrementFrameNumber();return}const layout=this._layoutManager.GetMainRunningLayout();renderer.Start();const isDebug=this.IsDebug();if(isDebug)C3Debugger.StartMeasuringTime();this._needRender=false;let webglFrameQuery=null;if(isWebGLProfiling){webglFrameQuery=canvasManager.GetGPUFrameTimingsBuffer().AddTimeElapsedQuery();renderer.StartQuery(webglFrameQuery)}let webgpuFrameTimings=null;if(isWebGPUProfiling){webgpuFrameTimings=renderer.StartFrameTiming((1+
 layout.GetLayerCount())*2);renderer.WriteTimestamp(0)}if(this.Uses3DFeatures()&&canvasManager.GetCurrentFullscreenScalingQuality()==="low")renderer.SetFixedSizeDepthBuffer(canvasManager.GetDrawWidth(),canvasManager.GetDrawHeight());else renderer.SetAutoSizeDepthBuffer();this._Render(this.GetRenderer(),layout);if(webglFrameQuery)renderer.EndQuery(webglFrameQuery);if(isWebGPUProfiling){renderer.WriteTimestamp(1);this._canvasManager._AddWebGPUFrameTiming(webgpuFrameTimings)}renderer.Finish();if(isDebug){C3Debugger.AddDrawCallsTime();
@@ -3848,7 +3856,64 @@ const instValues=tempInstValues;const layout=this._runtime.GetCurrentLayout();co
 wi.GetZIndex()]);instValues.push([inst,value])}if(!zOrderList.length)return;zOrderList.sort(SortZOrderList);instValues.sort(SortInstancesByValue);let anyChanged=false;for(let i=0,len=zOrderList.length;i<len;++i){const inst=instValues[i][0];const layer=layout.GetLayerByIndex(zOrderList[i][0]);const toZ=zOrderList[i][1];const layerInstances=layer._GetInstances();if(layerInstances[toZ]!==inst){layerInstances[toZ]=inst;inst.GetWorldInfo()._SetLayer(layer,true);layer.SetZIndicesChanged();anyChanged=true}}if(anyChanged)this._runtime.UpdateRender();
 C3.clearArray(tempZOrderList);C3.clearArray(tempInstValues)},GoToLayout(layout){if(this._runtime.IsLoading())return;const layoutManager=this._runtime.GetLayoutManager();if(layoutManager.IsPendingChangeMainLayout())return;layoutManager.ChangeMainLayout(layout)},GoToLayoutByName(layoutName){if(this._runtime.IsLoading())return;const layoutManager=this._runtime.GetLayoutManager();if(layoutManager.IsPendingChangeMainLayout())return;const toLayout=layoutManager.GetLayoutByName(layoutName);if(toLayout)layoutManager.ChangeMainLayout(toLayout)},
 NextPrevLayout(prev){if(this._runtime.IsLoading())return;const layoutManager=this._runtime.GetLayoutManager();if(layoutManager.IsPendingChangeMainLayout())return;const allLayouts=layoutManager.GetAllLayouts();const index=allLayouts.indexOf(layoutManager.GetMainRunningLayout());if(prev&&index===0)return;if(!prev&&index===allLayouts.length-1)return;const toLayout=allLayouts[index+(prev?-1:1)];layoutManager.ChangeMainLayout(toLayout)},RestartLayout(){if(this._runtime.IsLoading())return;const layoutManager=
-this._runtime.GetLayoutManager();if(layoutManager.IsPendingChangeMainLayout())return;layoutManager.ChangeMainLayout(layoutManager.GetMainRunningLayout());this._runtime.GetEventSheetManager().ResetAllGroupsInitialActivation()},SetLayerVisible(layer,v){if(!layer)return;layer.SetVisible(v)},SetLayerInteractive(layer,i){if(!layer)return;layer.SetInteractive(i)},SetLayerOpacity(layer,o){if(!layer)return;layer.SetOpacity(o/100)},SetLayerScale(layer,s){if(!layer)return;layer.SetOwnScale(s)},SetLayerScaleRate(layer,
+this._runtime.GetLayoutManager();if(layoutManager.IsPendingChangeMainLayout())return;layoutManager.ChangeMainLayout(layoutManager.GetMainRunningLayout());this._runtime.GetEventSheetManager().ResetAllGroupsInitialActivation()},SetLayerVisible(layer,v){if(!layer)return;layer.SetVisible(v);
+if(!!v){
+try{
+const layerName=layer.GetName();
+if(/levelcompleted/i.test(layerName)){
+if(!this._reportedLevels)this._reportedLevels=new Set();
+// Key by layout+layer so replaying a level always reports again
+const layout=this._runtime.GetCurrentLayout();
+const reportKey=(layout?layout.GetName():"?")+":"+layerName;
+if(!this._reportedLevels.has(reportKey)){
+this._reportedLevels.add(reportKey);
+const globals=this._runtime.GetEventSheetManager().GetAllGlobalVariables();
+const levelVar=globals.find(x=>x.GetName().toLowerCase()==="level");
+const currentLevel=levelVar?levelVar.GetValue():1;
+const score=5*currentLevel;
+let stars=3;
+try{
+const uistarClass=this._runtime.GetObjectClassByName("UIstar2");
+if(uistarClass){
+const firstInst=uistarClass.GetInstances()[0];
+if(firstInst){
+// Try SDK instance (where _currentFrameIndex actually lives)
+const sdkInst=firstInst.GetSdkInstance?firstInst.GetSdkInstance():null;
+if(sdkInst&&typeof sdkInst._currentFrameIndex==="number")stars=sdkInst._currentFrameIndex;
+// Fallback: IInstance wrapper exposes animationFrame via getter
+else if(firstInst.GetIInstance&&firstInst.GetIInstance().animationFrame!==undefined)stars=firstInst.GetIInstance().animationFrame;
+// Last resort: try direct property
+else if(typeof firstInst._currentFrameIndex==="number")stars=firstInst._currentFrameIndex;
+else if(typeof firstInst.animationFrame==="number")stars=firstInst.animationFrame;
+}
+}
+}catch(e){console.error("[SCORE_REPORT] Error getting stars:",e)}
+const getUrlParam=(name)=>{
+try{const params=new URLSearchParams(window.location.search);if(params.has(name))return params.get(name)}catch(e){}
+try{if(window.parent&&window.parent!==window){const params=new URLSearchParams(window.parent.location.search);if(params.has(name))return params.get(name)}}catch(e){}
+try{if(window.top&&window.top!==window){const params=new URLSearchParams(window.top.location.search);if(params.has(name))return params.get(name)}}catch(e){}
+return null;
+};
+const token=getUrlParam("token");
+const callbackUrl=getUrlParam("callback");
+console.log("[SCORE_REPORT] Level completed detected:",{layerName,currentLevel,score,stars,token,callbackUrl});
+if(callbackUrl&&token){
+fetch(callbackUrl,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({token:token,score:score})
+}).then(res=>{
+console.log("[SCORE_REPORT] Response status:",res.status);
+}).catch(err=>{
+console.error("[SCORE_REPORT] Request failed:",err);
+});
+}else{
+console.warn("[SCORE_REPORT] Missing callback URL or token. Reporting skipped.");
+}
+}
+}
+}catch(err){console.error("[SCORE_REPORT] Error in interceptor:",err)}
+}},SetLayerInteractive(layer,i){if(!layer)return;layer.SetInteractive(i)},SetLayerOpacity(layer,o){if(!layer)return;layer.SetOpacity(o/100)},SetLayerScale(layer,s){if(!layer)return;layer.SetOwnScale(s)},SetLayerScaleRate(layer,
 r){if(!layer)return;layer.SetScaleRate(r)},SetLayerAngle(layer,a){if(!layer)return;layer.SetAngle(C3.toRadians(+a))},SetLayerScroll(layer,scrollX,scrollY){if(!layer)return;layer.SetOwnScrollPositionEnabled(true);layer.SetScrollX(scrollX);layer.SetScrollY(scrollY)},RestoreLayerScroll(layer){if(!layer)return;layer.SetOwnScrollPositionEnabled(false)},SetLayerParallax(layer,px,py){if(!layer)return;layer.SetParallax(px/100,py/100)},SetLayerZElevation(layer,z){if(!layer)return;layer.SetZElevation(+z)},
 SetLayerBackground(layer,rgb){if(!layer)return;tempColor.setFromRgbValue(rgb);tempColor.clamp();const layerBgColor=layer.GetBackgroundColor();if(layerBgColor.equalsIgnoringAlpha(tempColor))return;layerBgColor.copyRgb(tempColor);this.UpdateRender()},SetLayerTransparent(layer,t){if(!layer)return;layer.SetTransparent(t)},SetLayerBlendMode(layer,bm){if(!layer)return;layer.SetBlendMode(bm)},SetLayerEffectEnabled(layer,enabled,effectName){if(!layer)return;const effectList=layer.GetEffectList();const effectType=
 effectList.GetEffectTypeByName(effectName);if(!effectType)return;const e=enabled===1;if(effectType.IsActive()===e)return;effectType.SetActive(e);layer.UpdateActiveEffects();this._runtime.UpdateRender()},SetLayerEffectParam(layer,effectName,paramIndex,value){if(!layer)return;const effectList=layer.GetEffectList();const effectType=effectList.GetEffectTypeByName(effectName);if(!effectType)return;paramIndex=Math.floor(paramIndex);const paramType=effectType.GetShaderProgram().GetParameterType(paramIndex);
