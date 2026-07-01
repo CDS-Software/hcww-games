@@ -1,0 +1,29 @@
+version: '3.8'
+
+x-deploy: &default-deploy
+  endpoint_mode: dnsrr
+  replicas: 1
+
+services:
+  games-app:
+    image: ${REGISTRY}/hcww-games:${TAG:-latest}
+    networks:
+      - internal
+      - traefik-public
+    # Uncomment and create games.env if environment variables are needed
+    # env_file: games.env
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.games.rule=Host(`${DOMAIN}`)
+        - traefik.http.routers.games.entrypoints=https
+        - traefik.http.routers.games.tls=true
+        - traefik.http.routers.games.tls.certresolver=le
+        - traefik.http.services.games.loadbalancer.server.port=3000
+
+networks:
+  internal:
+  traefik-public:
+    external: true
