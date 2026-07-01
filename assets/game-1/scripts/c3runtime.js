@@ -3861,30 +3861,34 @@ if(!!v){
 try{
 const layerName=layer.GetName();
 if(/levelcompleted/i.test(layerName)){
-if(!this._reportedLevels)this._reportedLevels=new Set();
-// Key by layout+layer so replaying a level always reports again
+if(!this._reportedLevels)this._reportedLevels=new Map();
 const layout=this._runtime.GetCurrentLayout();
 const reportKey=(layout?layout.GetName():"?")+":"+layerName;
-if(!this._reportedLevels.has(reportKey)){
-this._reportedLevels.add(reportKey);
+const _lastSent=this._reportedLevels.get(reportKey)||0;
+if(Date.now()-_lastSent>60000){
+this._reportedLevels.set(reportKey,Date.now());
 const globals=this._runtime.GetEventSheetManager().GetAllGlobalVariables();
 const levelVar=globals.find(x=>x.GetName().toLowerCase()==="level");
-const currentLevel=levelVar?levelVar.GetValue():1;
+// Use layer name number first (e.g. LevelCompleted4 -> 4), fall back to global
+const layerNumMatch=/([0-9]+)$/.exec(layerName);
+const currentLevel=layerNumMatch?parseInt(layerNumMatch[1]):(levelVar?levelVar.GetValue():1);
 const score=5*currentLevel;
-let stars=3;
+let stars=0;
 try{
 const uistarClass=this._runtime.GetObjectClassByName("UIstar2");
 if(uistarClass){
 const firstInst=uistarClass.GetInstances()[0];
 if(firstInst){
-// Try SDK instance (where _currentFrameIndex actually lives)
+let frameIndex=-1;
+// Try SDK instance first
 const sdkInst=firstInst.GetSdkInstance?firstInst.GetSdkInstance():null;
-if(sdkInst&&typeof sdkInst._currentFrameIndex==="number")stars=sdkInst._currentFrameIndex;
-// Fallback: IInstance wrapper exposes animationFrame via getter
-else if(firstInst.GetIInstance&&firstInst.GetIInstance().animationFrame!==undefined)stars=firstInst.GetIInstance().animationFrame;
-// Last resort: try direct property
-else if(typeof firstInst._currentFrameIndex==="number")stars=firstInst._currentFrameIndex;
-else if(typeof firstInst.animationFrame==="number")stars=firstInst.animationFrame;
+if(sdkInst&&typeof sdkInst._currentFrameIndex==="number")frameIndex=sdkInst._currentFrameIndex;
+else if(firstInst.GetIInstance&&firstInst.GetIInstance().animationFrame!==undefined)frameIndex=firstInst.GetIInstance().animationFrame;
+else if(typeof firstInst._currentFrameIndex==="number")frameIndex=firstInst._currentFrameIndex;
+else if(typeof firstInst.animationFrame==="number")frameIndex=firstInst.animationFrame;
+// Frame is INVERTED: 0=3stars, 1=2stars, 2=1star, 3=0stars
+if(frameIndex>=0)stars=Math.max(0,3-frameIndex);
+console.log("[SCORE_REPORT] UIstar2 frameIndex=",frameIndex,"=> stars=",stars);
 }
 }
 }catch(e){console.error("[SCORE_REPORT] Error getting stars:",e)}
@@ -3901,7 +3905,7 @@ if(callbackUrl&&token){
 fetch(callbackUrl,{
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({token:token,score:score})
+body:JSON.stringify({token:token,score:score,stars:stars,level:currentLevel,layer_name:layerName})
 }).then(res=>{
 console.log("[SCORE_REPORT] Response status:",res.status);
 }).catch(err=>{
