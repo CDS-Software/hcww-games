@@ -481,3 +481,108 @@ this.ze(this.cb)*this.zb,this.n.y=this.Df+Math.sin(this.n.m)*this.ze(this.cb)*th
 !1};p.k=new g;m.prototype.At=function(g,m,e){this.qb[e.toLowerCase()]={current:new eb,total:new eb,duration:g,Nn:1===m}};m.prototype.Ct=function(g){g=g.toLowerCase();this.qb.hasOwnProperty(g)&&delete this.qb[g]};p.G=new m;p.Ha=new function(){}})();
 function pc(){return[sc,rc,tc,yc,Z,xc,qc,zc,Ac,Cc,Kc,Bc,Ec,X.prototype.k.Ko,Z.prototype.G.ws,X.prototype.Ha.ix,X.prototype.G.qt,X.prototype.Ha.zx,X.prototype.G.xt,X.prototype.G.ot,X.prototype.k.Is,X.prototype.k.Ft,zc.prototype.G.zl,zc.prototype.G.wt,qc.prototype.G.zl,yc.prototype.G.zl,xc.prototype.G.nt,X.prototype.G.Gt,X.prototype.k.As,Z.prototype.G.pt,Z.prototype.k.Ho,Z.prototype.k.Fo,Z.prototype.G.Fs,Z.prototype.k.Go,Z.prototype.Ha.Ks,X.prototype.G.Cs,Ac.prototype.k.Bl,sc.prototype.G.Play,Cc.prototype.G.Es,
 xc.prototype.k.Js,qc.prototype.G.mt,rc.prototype.k.aj,X.prototype.G.ss,zc.prototype.G.To,rc.prototype.G.CallFunction,Kc.prototype.G.At,Kc.prototype.k.kt,Kc.prototype.G.Ct,qc.prototype.G.Bt,X.prototype.G.Dt,X.prototype.Ha.random,qc.prototype.k.jf,X.prototype.Ha.op,Ec.prototype.G.tt,Bc.prototype.G.ut,qc.prototype.k.zs,qc.prototype.G.To,qc.prototype.k.Bs,qc.prototype.G.zt]};
+
+// ── G4 Monitor: Detect win/lose and report to API ──────────────────────────
+(function(){
+  // Strategy: poll every 300ms, read Score & Timer1 globals directly.
+  // Win  = Score >= 100           → 3 stars
+  // Lose = we had gameStarted && Timer1 <= 0 && Score < 100
+  // Stars based on Score: <25=0, 25-49=1, 50-74=2, 75+=3
+
+  var _g4Sent       = false;
+  var _g4Runtime    = null;
+  var _g4Started    = false;  // set true once we see Score > 0 or Timer1 < 10
+
+  function g4_getVar(rt, name) {
+    try {
+      var ph = rt.ph;
+      for (var k in ph) {
+        if (ph.hasOwnProperty(k) && ph[k].name === name) {
+          return ph[k].data;
+        }
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  function g4_starsFromScore(score) {
+    if (score >= 75) return 3;
+    if (score >= 50) return 2;
+    if (score >= 25) return 1;
+    return 0;
+  }
+
+  function g4_sendReport(score, stars, isWin) {
+    if (_g4Sent) return;
+    _g4Sent = true;
+
+    var tok = new URLSearchParams(window.location.search).get('token');
+    var cb  = new URLSearchParams(window.location.search).get('callback');
+
+    console.warn('[G4] GAME OVER  score=' + score + '  stars=' + stars + '  win=' + isWin);
+
+    if (tok && cb) {
+      fetch(cb, {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({ token: tok, score: score, stars: stars, win: isWin ? 1 : 0 })
+      })
+      .then(function(r){ return r.text(); })
+      .then(function(b){ console.warn('[G4 API OK]', b); })
+      .catch(function(e){ console.error('[G4 API ERR]', e.message); });
+    } else {
+      console.warn('[G4] No token/callback in URL – skipping API call');
+    }
+  }
+
+  var _g4Poll = setInterval(function(){
+    try {
+      // Acquire runtime once
+      if (!_g4Runtime) {
+        if (typeof window.cr_getC2Runtime === 'function') {
+          var rt = window.cr_getC2Runtime();
+          if (rt && rt.ph) _g4Runtime = rt;
+        }
+        if (!_g4Runtime) {
+          var canvas = document.getElementById('c2canvas');
+          if (canvas && canvas.c2runtime && canvas.c2runtime.ph) {
+            _g4Runtime = canvas.c2runtime;
+          }
+        }
+        if (!_g4Runtime) return;
+        console.warn('[G4] Runtime found');
+      }
+
+      if (_g4Sent) { clearInterval(_g4Poll); return; }
+
+      var score  = g4_getVar(_g4Runtime, 'Score');
+      var timer1 = g4_getVar(_g4Runtime, 'Timer1');
+
+      if (score === null || timer1 === null) return;
+
+      // Mark game as started once timer has begun counting down
+      if (!_g4Started && timer1 < 10 && timer1 > 0) {
+        _g4Started = true;
+        console.warn('[G4] Game started  Score=' + score + '  Timer1=' + timer1);
+      }
+
+      // WIN: score reached 100
+      if (score >= 100) {
+        g4_sendReport(100, 3, true);
+        clearInterval(_g4Poll);
+        return;
+      }
+
+      // LOSE: timer ran out after game had started
+      if (_g4Started && timer1 <= 0) {
+        var stars = g4_starsFromScore(score);
+        g4_sendReport(score, stars, false);
+        clearInterval(_g4Poll);
+        return;
+      }
+
+    } catch(e) { console.error('[G4 POLL ERR]', e.message); }
+  }, 300);
+
+  console.warn('[G4] Monitor installed – polling for runtime...');
+})();
