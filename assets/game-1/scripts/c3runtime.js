@@ -3869,7 +3869,7 @@ if(Date.now()-_lastSent>60000){
 this._reportedLevels.set(reportKey,Date.now());
 const globals=this._runtime.GetEventSheetManager().GetAllGlobalVariables();
 const levelVar=globals.find(x=>x.GetName().toLowerCase()==="level");
-// Use layer name number first (e.g. LevelCompleted4 -> 4), fall back to global
+// Use layer name number first (e.g. LevelCompleted4 -> 4), fall back to global yousry
 const layerNumMatch=/([0-9]+)$/.exec(layerName);
 const currentLevel=layerNumMatch?parseInt(layerNumMatch[1]):(levelVar?levelVar.GetValue():1);
 const score=5*currentLevel;
